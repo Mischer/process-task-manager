@@ -1,0 +1,10 @@
+const TASK_STATUSES = {
+  RECEIVED: 'RECEIVED',
+  PROCESSING: 'PROCESSING',
+  PROCESSED: 'PROCESSED',
+  FAILED: 'FAILED'
+};
+
+module.exports = {
+  TASK_STATUSES
+};
