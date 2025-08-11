@@ -1,16 +1,50 @@
 {
   "name": "process-task-manager",
   "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "description": "Fault-tolerant, event-driven task manager (API Gateway + Lambda + SQS + DLQ + DynamoDB)",
+  "private": true,
+  "type": "commonjs",
+  "engines": {
+    "node": ">=20"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "",
+  "scripts": {
+    "deploy": "serverless deploy",
+    "remove": "serverless remove",
+    "package": "serverless package",
+    "info": "serverless info --verbose",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "logs:submit": "serverless logs -f submitTask -t",
+    "logs:process": "serverless logs -f processTask -t",
+    "logs:dlq": "serverless logs -f dlqMonitor -t",
+    "invoke:submit:local": "serverless invoke local -f submitTask -d '{\"body\":\"{\\\"taskId\\\":\\\"local-1\\\",\\\"payload\\\":{\\\"x\\\":1}}\"}'",
+    "smoke": "node ./src/scripts/smoke-test.js"
+  },
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "2.24.1",
+    "@aws-lambda-powertools/metrics": "2.24.1",
+    "@aws-lambda-powertools/tracer": "2.24.1",
+    "@aws-sdk/client-dynamodb": "3.864.0",
+    "@aws-sdk/client-sqs": "3.864.0",
+    "@aws-sdk/lib-dynamodb": "3.864.0"
+  },
   "devDependencies": {
-    "serverless": "^4.18.0",
-    "serverless-step-functions": "^3.23.3"
-  }
+    "eslint": "9.33.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-security": "3.0.1",
+    "prettier": "3.6.2",
+    "serverless": "4.18.0"
+  },
+  "keywords": [
+    "serverless",
+    "aws",
+    "nodejs",
+    "lambda",
+    "sqs",
+    "dynamodb",
+    "dlq"
+  ],
+  "author": "Mikhail Kultiyasov (mischer86@gmail.com)",
+  "license": "ISC"
 }

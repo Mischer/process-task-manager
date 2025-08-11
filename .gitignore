@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+
+# Serverless build artifacts
+.serverless/
+
+# Logs
+*.log
+
+# OS-specific
+.DS_Store
+
+# Env variables (never commit secrets)
+.env
+
+# IDE/editor settings
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo

@@ -1,0 +1,126 @@
+service: process-task-manager
+frameworkVersion: '4.18.0'
+configValidationMode: error
+
+provider:
+  name: aws
+  runtime: nodejs20.x
+  stage: ${opt:stage, env:SLS_STAGE, 'dev'}
+  region: ${opt:region, env:SLS_REGION, 'eu-central-1'}
+  profile: ${opt:profile, env:AWS_PROFILE, ''}
+  environment:
+    NODE_OPTIONS: '--enable-source-maps'
+    LOG_LEVEL: ${env:LOG_LEVEL, 'INFO'}
+    POWERTOOLS_SERVICE_NAME: process-task-manager
+    POWERTOOLS_LOGGER_LOG_EVENT: false
+
+    MAX_TASK_ID_LENGTH: ${env:MAX_TASK_ID_LENGTH, 128}
+    MAX_PAYLOAD_SIZE_BYTES: ${env:MAX_PAYLOAD_SIZE_BYTES, 51200}
+
+    QUEUE_URL: { Ref: MainQueue }
+    DLQ_URL: { Ref: DeadLetterQueue }
+    TASKS_TABLE: ${self:service}-${sls:stage}-tasks
+  iam:
+    role:
+      statements:
+        # submitTask → send to MainQueue
+        - Effect: Allow
+          Action:
+            - sqs:SendMessage
+          Resource:
+            - Fn::GetAtt: [MainQueue, Arn]
+
+        # processTask → consume MainQueue with backoff
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+            - sqs:ChangeMessageVisibility
+            - sqs:GetQueueAttributes
+          Resource:
+            - Fn::GetAtt: [MainQueue, Arn]
+
+        # dlqMonitor → consume DLQ
+        - Effect: Allow
+          Action:
+            - sqs:ReceiveMessage
+            - sqs:DeleteMessage
+          Resource:
+            - Fn::GetAtt: [DeadLetterQueue, Arn]
+
+        # DynamoDB table used by submitTask (PutItem) and processTask (UpdateItem/GetItem)
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:GetItem
+          Resource:
+            - arn:aws:dynamodb:${aws:region}:${aws:accountId}:table/${self:service}-${sls:stage}-tasks
+
+functions:
+  submitTask:
+    handler: src/submitTask.handler
+    description: POST /tasks (validate input and send to SQS)
+    memorySize: 128
+    timeout: 10
+    events:
+      - httpApi:
+          path: /tasks
+          method: post
+
+  processTask:
+    handler: src/processTask.handler
+    description: Consumer SQS (30% fails, exponential backoff, DLQ after 2 retry)
+    memorySize: 256
+    timeout: 60
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [MainQueue, Arn]
+          batchSize: 1
+
+  dlqMonitor:
+    handler: src/dlqMonitor.handler
+    description: DLQ handler log to CloudWatch
+    memorySize: 128
+    timeout: 30
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt: [DeadLetterQueue, Arn]
+          batchSize: 1
+
+resources:
+  Resources:
+    MainQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-main
+        VisibilityTimeout: 60
+        RedrivePolicy:
+          deadLetterTargetArn: { Fn::GetAtt: [DeadLetterQueue, Arn] }
+          maxReceiveCount: 3
+
+    DeadLetterQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: ${self:service}-${sls:stage}-dlq
+
+    TasksTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${sls:stage}-tasks
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: taskId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: taskId
+            KeyType: HASH
+
+# built-in build options
+build:
+  esbuild: true
+  minify: true
+  sourcemap: true
+  concurrency: ${env:ESBUILD_CONCURRENCY, 3}

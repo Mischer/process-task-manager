@@ -41,6 +41,12 @@ async function putTaskIfAbsent(task, opts = {}) {
   return { created: true };
 }
 
+/**
+ * Get task by ID from DynamoDB.
+ *
+ * @param {string} taskId - Unique task identifier.
+ * @returns {Promise<Object|undefined>} Task item or undefined if not found.
+ */
 async function getTask(taskId) {
   const res = await dynamoDb.send(
     new GetCommand({
@@ -51,6 +57,13 @@ async function getTask(taskId) {
   return res.Item;
 }
 
+/**
+ * Update task status in DynamoDB.
+ *
+ * @param {string} taskId - Unique task identifier.
+ * @param {string} status - New status value.
+ * @returns {Promise<void>}
+ */
 async function updateTaskStatus(taskId, status) {
   await dynamoDb.send(
     new UpdateCommand({
@@ -63,16 +76,4 @@ async function updateTaskStatus(taskId, status) {
   );
 }
 
-async function markTaskProcessed(taskId) {
-  await dynamoDb.send(
-    new UpdateCommand({
-      TableName: resources.tasksTable,
-      Key: { taskId },
-      UpdateExpression: 'SET #s = :s, processedAt = :t, lastUpdatedAt = :t',
-      ExpressionAttributeNames: { '#s': 'status' },
-      ExpressionAttributeValues: { ':s': 'PROCESSED', ':t': new Date().toISOString() }
-    })
-  );
-}
-
-module.exports = { putTaskIfAbsent, getTask, updateTaskStatus, markTaskProcessed };
+module.exports = { putTaskIfAbsent, getTask, updateTaskStatus };
